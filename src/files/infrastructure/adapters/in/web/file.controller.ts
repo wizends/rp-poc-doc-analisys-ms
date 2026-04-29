@@ -1,4 +1,5 @@
-import { Controller, Post, Get, Param, Body, HttpCode, HttpStatus, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, HttpCode, HttpStatus, NotFoundException, BadRequestException, Sse, MessageEvent } from '@nestjs/common';
+import { Observable } from 'rxjs';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { InitUploadDto } from './dtos/init-upload.dto';
 import { InitUploadResponseDto } from './dtos/init-upload-response.dto';
@@ -14,6 +15,7 @@ import { ProcessAiSummaryUseCase } from '../../../../application/use-cases/proce
 import { ClassifyErrorsUseCase } from '../../../../application/use-cases/classify-errors.use-case';
 import { GetFileErrorsUseCase } from '../../../../application/use-cases/get-file-errors.use-case';
 import { GetFileErrorsResponseDto } from './dtos/get-file-errors-response.dto';
+import { FileProgressService } from '../../../../application/services/file-progress.service';
 
 @ApiTags('files')
 @Controller('v1/files')
@@ -25,6 +27,7 @@ export class FileController {
     private readonly processAiSummaryUseCase: ProcessAiSummaryUseCase,
     private readonly classifyErrorsUseCase: ClassifyErrorsUseCase,
     private readonly getFileErrorsUseCase: GetFileErrorsUseCase,
+    private readonly fileProgressService: FileProgressService,
   ) { }
 
   @Post('upload/init')
@@ -117,5 +120,11 @@ export class FileController {
   async getErrors(@Param('id') id: string): Promise<GetFileErrorsResponseDto> {
     const errors = await this.getFileErrorsUseCase.execute(id);
     return { errors };
+  }
+
+  @Sse(':id/progress')
+  @ApiOperation({ summary: 'Conectarse para recibir el progreso de procesamiento vía Server-Sent Events (SSE)' })
+  progressStream(@Param('id') id: string): Observable<MessageEvent> {
+    return this.fileProgressService.getProgressObservable(id);
   }
 }

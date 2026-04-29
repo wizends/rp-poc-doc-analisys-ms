@@ -17,6 +17,7 @@ import { CompleteUploadUseCase } from './application/use-cases/complete-upload.u
 import { ProcessAiSummaryUseCase } from './application/use-cases/process-ai-summary.use-case';
 import { ClassifyErrorsUseCase } from './application/use-cases/classify-errors.use-case';
 import { GetFileErrorsUseCase } from './application/use-cases/get-file-errors.use-case';
+import { FileProgressService } from './application/services/file-progress.service';
 import { FileController } from './infrastructure/adapters/in/web/file.controller';
 import { FileProcessingProcessor } from './infrastructure/adapters/in/workers/file-processing.processor';
 import { RowValidationProcessor } from './infrastructure/adapters/in/workers/row-validation.processor';
@@ -57,6 +58,7 @@ import { ValidationErrorProcessor } from './infrastructure/adapters/in/workers/v
     ProcessAiSummaryUseCase,
     ClassifyErrorsUseCase,
     GetFileErrorsUseCase,
+    FileProgressService,
   ],
   exports: [
     InitUploadUseCase,

@@ -33,6 +33,7 @@ export class MysqlFileRepository implements FileRepositoryPort {
       schema.totalChunks,
       schema.processedRecords,
       schema.fileHash ?? undefined,
+      schema.summary ?? undefined,
       schema.createdAt,
     );
     entity.totalRecords = schema.totalRecords;
@@ -58,6 +59,7 @@ export class MysqlFileRepository implements FileRepositoryPort {
       processedRecords: entity.processedRecords,
       fileBase64: entity.fileBase64 ?? null,
       fileHash: entity.fileHash ?? null,
+      summary: entity.summary ?? null,
     };
   }
 
@@ -169,5 +171,29 @@ export class MysqlFileRepository implements FileRepositoryPort {
   async saveCompra(compra: CompraEntity): Promise<void> {
     const schema = this.compraToSchema(compra);
     await this.compraRepo.save(schema);
+  }
+
+  async incrementProgress(id: string): Promise<{ file: FileEntity; justCompleted: boolean } | null> {
+    // Atomic increment
+    await this.fileRepo.increment({ id }, 'processedRecords', 1);
+    const schema = await this.fileRepo.findOne({ where: { id } });
+    if (!schema) return null;
+
+    let justCompleted = false;
+    // Comprobar si ha llegado al total
+    if (schema.processedRecords >= schema.totalRecords && schema.status !== 'COMPLETED') {
+      // Intentar una actualización atómica del estado con compare-and-swap
+      const updateResult = await this.fileRepo.update(
+        { id: schema.id, status: 'PROCESSING' }, // O cualquier estado diferente a COMPLETED
+        { status: 'COMPLETED' }
+      );
+      // Si affected > 0, significa que este proceso fue el que logró cambiar a COMPLETED
+      if (updateResult.affected && updateResult.affected > 0) {
+        justCompleted = true;
+        schema.status = 'COMPLETED';
+      }
+    }
+
+    return { file: this.toDomain(schema), justCompleted };
   }
 }

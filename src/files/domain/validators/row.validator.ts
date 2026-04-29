@@ -16,8 +16,8 @@ function isEmpty(value: any): boolean {
   return value === null || value === undefined || value === '';
 }
 
-const VALID_ESTADOS = ['APROBADO', 'PENDIENTE', 'RECHAZADO', 'EN PROCESO', 'CANCELADO'];
-const VALID_METODOS_PAGO = ['TRANSFERENCIA', 'TARJETA', 'EFECTIVO', 'CHEQUE', 'PSE', 'NEQUI', 'DAVIPLATA'];
+const VALID_ESTADOS = ['APROBADO', 'PENDIENTE', 'RECHAZADO', 'EN PROCESO', 'CANCELADO', 'COMPLETADO', 'EN REVISION'];
+const VALID_METODOS_PAGO = ['TRANSFERENCIA', 'TARJETA', 'EFECTIVO', 'CHEQUE', 'PSE', 'NEQUI', 'DAVIPLATA', 'DEBITO', 'CREDITO'];
 
 // ─── Validadores por campo ────────────────────────────────────────────
 

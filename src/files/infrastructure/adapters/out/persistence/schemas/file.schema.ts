@@ -26,6 +26,9 @@ export class FileSchema {
   @Column('varchar', { length: 255, nullable: true, unique: true })
   fileHash: string | null;
 
+  @Column('longtext', { nullable: true })
+  summary: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 }

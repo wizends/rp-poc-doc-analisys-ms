@@ -52,4 +52,19 @@ export class InMemoryFileRepository implements FileRepositoryPort {
     fileCompras.push(compra);
     this.compras.set(compra.fileId, fileCompras);
   }
+
+  async incrementProgress(id: string): Promise<{ file: FileEntity; justCompleted: boolean } | null> {
+    const file = this.files.get(id);
+    if (!file) return null;
+
+    file.processedRecords += 1;
+    let justCompleted = false;
+
+    if (file.processedRecords >= file.totalRecords && file.status !== 'COMPLETED') {
+      file.status = 'COMPLETED';
+      justCompleted = true;
+    }
+
+    return { file, justCompleted };
+  }
 }

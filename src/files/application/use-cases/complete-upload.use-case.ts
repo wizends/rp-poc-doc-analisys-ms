@@ -4,6 +4,8 @@ import type { FileRepositoryPort } from '../../domain/ports/file.repository.port
 import { QUEUE_SERVICE_PORT } from '../../domain/ports/queue.service.port';
 import type { QueueServicePort } from '../../domain/ports/queue.service.port';
 
+import * as XLSX from 'xlsx';
+
 export interface CompleteUploadResult {
   fileId: string;
   totalBytes: number;
@@ -36,7 +38,22 @@ export class CompleteUploadUseCase {
 
     // Ensamblar todos los chunks en un solo base64
     const fullBase64 = file.assembleChunks();
-    const totalBytes = Buffer.from(fullBase64, 'base64').length;
+    const buffer = Buffer.from(fullBase64, 'base64');
+    const totalBytes = buffer.length;
+
+    // ─── Validación de archivo corrupto ─────────────────────────────────
+    try {
+      // bookSheets: true lee solo metadatos y hojas, es rápido y valida que el archivo no esté corrupto
+      const workbook = XLSX.read(buffer, { type: 'buffer', bookSheets: true });
+      if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+        throw new Error('El archivo no contiene hojas.');
+      }
+    } catch (error) {
+      // Marcar como fallido en la base de datos para no dejarlo colgado
+      file.status = 'FAILED';
+      await this.fileRepository.updateFile(file);
+      throw new Error(`El archivo está corrupto o tiene un formato inválido: ${error.message}`);
+    }
 
     file.status = 'PENDING';
     await this.fileRepository.updateFile(file);

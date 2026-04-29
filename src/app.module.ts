@@ -8,6 +8,7 @@ import { FilesModule } from './files/files.module';
 import { FileSchema } from './files/infrastructure/adapters/out/persistence/schemas/file.schema';
 import { ErrorLogSchema } from './files/infrastructure/adapters/out/persistence/schemas/error-log.schema';
 import { FileChunkSchema } from './files/infrastructure/adapters/out/persistence/schemas/file-chunk.schema';
+import { CompraSchema } from './files/infrastructure/adapters/out/persistence/schemas/compra.schema';
 
 @Module({
   imports: [
@@ -19,7 +20,7 @@ import { FileChunkSchema } from './files/infrastructure/adapters/out/persistence
       username: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      entities: [FileSchema, ErrorLogSchema, FileChunkSchema],
+      entities: [FileSchema, ErrorLogSchema, FileChunkSchema, CompraSchema],
       synchronize: true, // Auto-crear tablas (solo para desarrollo)
     }),
     BullModule.forRoot({

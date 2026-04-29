@@ -19,6 +19,10 @@ export class ProcessAiSummaryUseCase {
       throw new Error('File not found');
     }
 
+    if (file.summary) {
+      return file.summary;
+    }
+
     const errors = await this.fileRepository.findErrorsByFileId(fileId);
     
     // Agrupar errores por clasificación
@@ -33,12 +37,18 @@ export class ProcessAiSummaryUseCase {
       errorsByCategory
     };
 
+    let summaryStr: string;
     try {
       // Intentamos obtener el resumen con IA
-      return await this.aiService.generateProcessingSummary(stats);
+      summaryStr = await this.aiService.generateProcessingSummary(stats);
     } catch (error) {
       // Fallback si la IA falla
-      return `Proceso finalizado. Se procesaron ${stats.totalRecords} registros con ${errors.length} errores detectados.`;
+      summaryStr = `Proceso finalizado. Se procesaron ${stats.totalRecords} registros con ${errors.length} errores detectados.`;
     }
+
+    file.summary = summaryStr;
+    await this.fileRepository.updateFile(file);
+
+    return summaryStr;
   }
 }
