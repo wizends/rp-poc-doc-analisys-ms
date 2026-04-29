@@ -6,9 +6,6 @@ import { ErrorClassification } from '../../../../domain/entities/file.entity';
 export class MockAiAdapter implements AiServicePort {
   async generateProcessingSummary(stats: FileProcessingStats): Promise<string> {
     console.log('[MockAiAdapter] Calling AI for summary...', stats);
-    // Simular un delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
     const errorsList = Object.entries(stats.errorsByCategory)
       .map(([type, count]) => `${count} ${type}`)
       .join(', ');
@@ -18,7 +15,6 @@ export class MockAiAdapter implements AiServicePort {
 
   async classifyErrors(errors: any[]): Promise<{ id: string; categoria: ErrorClassification; }[]> {
     console.log('[MockAiAdapter] Calling AI to classify errors...', errors.length);
-    // Simular clasificación
     return errors.map(e => {
       let categoria: ErrorClassification = 'Error de validación';
       if (e.error?.toLowerCase().includes('monto negativo')) {
@@ -28,7 +24,7 @@ export class MockAiAdapter implements AiServicePort {
       } else if (e.error?.toLowerCase().includes('fuera de rango')) {
         categoria = 'Posible fraude/anomalía';
       }
-      
+
       return {
         id: e.id,
         categoria

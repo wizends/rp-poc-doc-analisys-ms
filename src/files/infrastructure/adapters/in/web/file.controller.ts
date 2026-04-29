@@ -1,10 +1,15 @@
-import { Controller, Post, Get, Param, Body, HttpCode, HttpStatus, NotFoundException } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, HttpCode, HttpStatus, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
-import { UploadFileDto } from './dtos/upload-file.dto';
-import { UploadFileResponseDto } from './dtos/upload-file-response.dto';
+import { InitUploadDto } from './dtos/init-upload.dto';
+import { InitUploadResponseDto } from './dtos/init-upload-response.dto';
+import { UploadChunkDto } from './dtos/upload-chunk.dto';
+import { UploadChunkResponseDto } from './dtos/upload-chunk-response.dto';
+import { CompleteUploadResponseDto } from './dtos/complete-upload-response.dto';
 import { FileSummaryResponseDto } from './dtos/file-summary-response.dto';
 import { TriggerClassificationResponseDto } from './dtos/trigger-classification-response.dto';
-import { UploadFileUseCase } from '../../../../application/use-cases/upload-file.use-case';
+import { InitUploadUseCase } from '../../../../application/use-cases/init-upload.use-case';
+import { UploadChunkUseCase } from '../../../../application/use-cases/upload-chunk.use-case';
+import { CompleteUploadUseCase } from '../../../../application/use-cases/complete-upload.use-case';
 import { ProcessAiSummaryUseCase } from '../../../../application/use-cases/process-ai-summary.use-case';
 import { ClassifyErrorsUseCase } from '../../../../application/use-cases/classify-errors.use-case';
 
@@ -12,25 +17,73 @@ import { ClassifyErrorsUseCase } from '../../../../application/use-cases/classif
 @Controller('v1/files')
 export class FileController {
   constructor(
-    private readonly uploadFileUseCase: UploadFileUseCase,
+    private readonly initUploadUseCase: InitUploadUseCase,
+    private readonly uploadChunkUseCase: UploadChunkUseCase,
+    private readonly completeUploadUseCase: CompleteUploadUseCase,
     private readonly processAiSummaryUseCase: ProcessAiSummaryUseCase,
     private readonly classifyErrorsUseCase: ClassifyErrorsUseCase,
-  ) {}
+  ) { }
 
-  @Post('upload')
-  @HttpCode(HttpStatus.ACCEPTED)
-  @ApiOperation({ summary: 'Subir archivo para procesamiento masivo' })
-  @ApiBody({ type: UploadFileDto })
-  @ApiResponse({ status: 202, description: 'Archivo encolado correctamente', type: UploadFileResponseDto })
-  async uploadFile(@Body() body: UploadFileDto): Promise<UploadFileResponseDto> {
-    // Simulamos la recepción del archivo y su URL en S3
-    const fileUrl = `https://s3.amazonaws.com/bucket/${body.filename}`;
-    const fileId = await this.uploadFileUseCase.execute(body.filename, fileUrl, body.totalRecords);
-    
+  @Post('upload/init')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Inicializar carga de archivo por chunks' })
+  @ApiBody({ type: InitUploadDto })
+  @ApiResponse({ status: 201, description: 'Sesión de upload creada', type: InitUploadResponseDto })
+  async initUpload(@Body() body: InitUploadDto): Promise<InitUploadResponseDto> {
+    const fileId = await this.initUploadUseCase.execute(body.filename, body.totalChunks);
     return {
-      message: 'File is being processed',
       fileId,
+      message: 'Upload initialized. Send chunks.',
+      totalChunks: body.totalChunks,
     };
+  }
+
+  @Post('upload/:id/chunk')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Subir un chunk del archivo en Base64' })
+  @ApiBody({ type: UploadChunkDto })
+  @ApiResponse({ status: 200, description: 'Chunk recibido correctamente', type: UploadChunkResponseDto })
+  @ApiResponse({ status: 400, description: 'Error en el chunk' })
+  @ApiResponse({ status: 404, description: 'Archivo no encontrado' })
+  async uploadChunk(
+    @Param('id') id: string,
+    @Body() body: UploadChunkDto,
+  ): Promise<UploadChunkResponseDto> {
+    try {
+      const result = await this.uploadChunkUseCase.execute(id, body.chunkIndex, body.data);
+      return {
+        message: `Chunk ${body.chunkIndex} received`,
+        receivedChunks: result.receivedChunks,
+        totalChunks: result.totalChunks,
+      };
+    } catch (e) {
+      if (e.message?.includes('no encontrado')) {
+        throw new NotFoundException(e.message);
+      }
+      throw new BadRequestException(e.message);
+    }
+  }
+
+  @Post('upload/:id/complete')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({ summary: 'Finalizar carga y ensamblar el archivo para procesamiento' })
+  @ApiResponse({ status: 202, description: 'Archivo ensamblado y encolado', type: CompleteUploadResponseDto })
+  @ApiResponse({ status: 400, description: 'Faltan chunks o estado inválido' })
+  @ApiResponse({ status: 404, description: 'Archivo no encontrado' })
+  async completeUpload(@Param('id') id: string): Promise<CompleteUploadResponseDto> {
+    try {
+      const result = await this.completeUploadUseCase.execute(id);
+      return {
+        message: 'File assembled and queued for processing',
+        fileId: result.fileId,
+        totalBytes: result.totalBytes,
+      };
+    } catch (e) {
+      if (e.message?.includes('no encontrado')) {
+        throw new NotFoundException(e.message);
+      }
+      throw new BadRequestException(e.message);
+    }
   }
 
   @Get(':id/summary')

@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-export class UploadFileDto {
+export class InitUploadDto {
   @ApiProperty({
     description: 'Nombre del archivo Excel',
     example: 'pagos_enero_2024.xlsx',
@@ -8,8 +8,8 @@ export class UploadFileDto {
   filename: string;
 
   @ApiProperty({
-    description: 'Contenido del archivo codificado en Base64',
-    example: 'UEsDBBQAAAAIAA...',
+    description: 'Cantidad total de chunks en los que se dividirá el archivo',
+    example: 10,
   })
-  fileBase64: string;
+  totalChunks: number;
 }
