@@ -12,6 +12,8 @@ import { UploadChunkUseCase } from '../../../../application/use-cases/upload-chu
 import { CompleteUploadUseCase } from '../../../../application/use-cases/complete-upload.use-case';
 import { ProcessAiSummaryUseCase } from '../../../../application/use-cases/process-ai-summary.use-case';
 import { ClassifyErrorsUseCase } from '../../../../application/use-cases/classify-errors.use-case';
+import { GetFileErrorsUseCase } from '../../../../application/use-cases/get-file-errors.use-case';
+import { GetFileErrorsResponseDto } from './dtos/get-file-errors-response.dto';
 
 @ApiTags('files')
 @Controller('v1/files')
@@ -22,6 +24,7 @@ export class FileController {
     private readonly completeUploadUseCase: CompleteUploadUseCase,
     private readonly processAiSummaryUseCase: ProcessAiSummaryUseCase,
     private readonly classifyErrorsUseCase: ClassifyErrorsUseCase,
+    private readonly getFileErrorsUseCase: GetFileErrorsUseCase,
   ) { }
 
   @Post('upload/init')
@@ -30,7 +33,7 @@ export class FileController {
   @ApiBody({ type: InitUploadDto })
   @ApiResponse({ status: 201, description: 'Sesión de upload creada', type: InitUploadResponseDto })
   async initUpload(@Body() body: InitUploadDto): Promise<InitUploadResponseDto> {
-    const fileId = await this.initUploadUseCase.execute(body.filename, body.totalChunks);
+    const fileId = await this.initUploadUseCase.execute(body.filename, body.totalChunks, body.fileHash);
     return {
       fileId,
       message: 'Upload initialized. Send chunks.',
@@ -105,5 +108,14 @@ export class FileController {
   async triggerErrorClassification(@Param('id') id: string): Promise<TriggerClassificationResponseDto> {
     await this.classifyErrorsUseCase.execute(id);
     return { message: 'Classification triggered' };
+  }
+
+  @Get(':id/errors')
+  @ApiOperation({ summary: 'Obtener todos los errores de validación de un archivo' })
+  @ApiResponse({ status: 200, description: 'Errores obtenidos exitosamente', type: GetFileErrorsResponseDto })
+  @ApiResponse({ status: 404, description: 'Archivo no encontrado' })
+  async getErrors(@Param('id') id: string): Promise<GetFileErrorsResponseDto> {
+    const errors = await this.getFileErrorsUseCase.execute(id);
+    return { errors };
   }
 }

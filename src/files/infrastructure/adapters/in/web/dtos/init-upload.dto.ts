@@ -12,4 +12,11 @@ export class InitUploadDto {
     example: 10,
   })
   totalChunks: number;
+
+  @ApiProperty({
+    description: 'Hash único del archivo (ej. SHA-256 o MD5) para evitar subidas duplicadas',
+    example: 'a2b3c4d5e6f7...',
+    required: false,
+  })
+  fileHash?: string;
 }

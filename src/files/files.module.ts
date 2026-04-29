@@ -7,6 +7,7 @@ import { QUEUE_SERVICE_PORT } from './domain/ports/queue.service.port';
 import { FileSchema } from './infrastructure/adapters/out/persistence/schemas/file.schema';
 import { ErrorLogSchema } from './infrastructure/adapters/out/persistence/schemas/error-log.schema';
 import { FileChunkSchema } from './infrastructure/adapters/out/persistence/schemas/file-chunk.schema';
+import { CompraSchema } from './infrastructure/adapters/out/persistence/schemas/compra.schema';
 import { MysqlFileRepository } from './infrastructure/adapters/out/persistence/mysql-file.repository';
 import { MockAiAdapter } from './infrastructure/adapters/out/ai/mock-ai.adapter';
 import { BullMqAdapter } from './infrastructure/adapters/out/queue/bullmq.adapter';
@@ -15,6 +16,7 @@ import { UploadChunkUseCase } from './application/use-cases/upload-chunk.use-cas
 import { CompleteUploadUseCase } from './application/use-cases/complete-upload.use-case';
 import { ProcessAiSummaryUseCase } from './application/use-cases/process-ai-summary.use-case';
 import { ClassifyErrorsUseCase } from './application/use-cases/classify-errors.use-case';
+import { GetFileErrorsUseCase } from './application/use-cases/get-file-errors.use-case';
 import { FileController } from './infrastructure/adapters/in/web/file.controller';
 import { FileProcessingProcessor } from './infrastructure/adapters/in/workers/file-processing.processor';
 import { RowValidationProcessor } from './infrastructure/adapters/in/workers/row-validation.processor';
@@ -22,7 +24,7 @@ import { ValidationErrorProcessor } from './infrastructure/adapters/in/workers/v
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([FileSchema, ErrorLogSchema, FileChunkSchema]),
+    TypeOrmModule.forFeature([FileSchema, ErrorLogSchema, FileChunkSchema, CompraSchema]),
     BullModule.registerQueue(
       { name: 'file-processing' },
       { name: 'row-validation' },
@@ -54,6 +56,7 @@ import { ValidationErrorProcessor } from './infrastructure/adapters/in/workers/v
     CompleteUploadUseCase,
     ProcessAiSummaryUseCase,
     ClassifyErrorsUseCase,
+    GetFileErrorsUseCase,
   ],
   exports: [
     InitUploadUseCase,
@@ -61,6 +64,7 @@ import { ValidationErrorProcessor } from './infrastructure/adapters/in/workers/v
     CompleteUploadUseCase,
     ProcessAiSummaryUseCase,
     ClassifyErrorsUseCase,
+    GetFileErrorsUseCase,
   ]
 })
 export class FilesModule {}

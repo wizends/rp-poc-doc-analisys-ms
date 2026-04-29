@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { FileRepositoryPort } from '../../../../domain/ports/file.repository.port';
 import { FileEntity, ErrorLogEntity } from '../../../../domain/entities/file.entity';
+import { CompraEntity } from '../../../../domain/entities/compra.entity';
 
 @Injectable()
 export class InMemoryFileRepository implements FileRepositoryPort {
   private files: Map<string, FileEntity> = new Map();
   private errors: Map<string, ErrorLogEntity[]> = new Map();
+  private compras: Map<string, CompraEntity[]> = new Map();
 
   async saveFile(file: FileEntity): Promise<void> {
     this.files.set(file.id, file);
@@ -34,5 +36,20 @@ export class InMemoryFileRepository implements FileRepositoryPort {
 
   async findErrorsByFileId(fileId: string): Promise<ErrorLogEntity[]> {
     return this.errors.get(fileId) || [];
+  }
+
+  async findByHash(hash: string): Promise<FileEntity | null> {
+    for (const file of this.files.values()) {
+      if (file.fileHash === hash) {
+        return file;
+      }
+    }
+    return null;
+  }
+
+  async saveCompra(compra: CompraEntity): Promise<void> {
+    const fileCompras = this.compras.get(compra.fileId) || [];
+    fileCompras.push(compra);
+    this.compras.set(compra.fileId, fileCompras);
   }
 }

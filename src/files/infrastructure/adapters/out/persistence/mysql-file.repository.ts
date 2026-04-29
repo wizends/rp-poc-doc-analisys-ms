@@ -4,9 +4,11 @@ import { Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
 import { FileRepositoryPort } from '../../../../domain/ports/file.repository.port';
 import { FileEntity, ErrorLogEntity, FileStatus, ErrorClassification } from '../../../../domain/entities/file.entity';
+import { CompraEntity } from '../../../../domain/entities/compra.entity';
 import { FileSchema } from './schemas/file.schema';
 import { ErrorLogSchema } from './schemas/error-log.schema';
 import { FileChunkSchema } from './schemas/file-chunk.schema';
+import { CompraSchema } from './schemas/compra.schema';
 
 @Injectable()
 export class MysqlFileRepository implements FileRepositoryPort {
@@ -17,6 +19,8 @@ export class MysqlFileRepository implements FileRepositoryPort {
     private readonly errorRepo: Repository<ErrorLogSchema>,
     @InjectRepository(FileChunkSchema)
     private readonly chunkRepo: Repository<FileChunkSchema>,
+    @InjectRepository(CompraSchema)
+    private readonly compraRepo: Repository<CompraSchema>,
   ) {}
 
   // ─── Mappers: Schema <-> Domain ────────────────────────────────────
@@ -28,6 +32,7 @@ export class MysqlFileRepository implements FileRepositoryPort {
       schema.status as FileStatus,
       schema.totalChunks,
       schema.processedRecords,
+      schema.fileHash ?? undefined,
       schema.createdAt,
     );
     entity.totalRecords = schema.totalRecords;
@@ -52,6 +57,7 @@ export class MysqlFileRepository implements FileRepositoryPort {
       totalChunks: entity.totalChunks,
       processedRecords: entity.processedRecords,
       fileBase64: entity.fileBase64 ?? null,
+      fileHash: entity.fileHash ?? null,
     };
   }
 
@@ -76,6 +82,20 @@ export class MysqlFileRepository implements FileRepositoryPort {
       rawData: entity.rawData,
       isAiClassified: entity.isAiClassified,
       aiClassification: entity.aiClassification,
+    };
+  }
+
+  private compraToSchema(entity: CompraEntity): Partial<CompraSchema> {
+    return {
+      id: entity.id,
+      fileId: entity.fileId,
+      id_transaccion: entity.idTransaccion,
+      fecha_registro: entity.fechaRegistro,
+      concepto: entity.concepto,
+      monto: entity.monto,
+      estado: entity.estado,
+      metodo_pago: entity.metodoPago,
+      observaciones: entity.observaciones ?? null,
     };
   }
 
@@ -138,5 +158,16 @@ export class MysqlFileRepository implements FileRepositoryPort {
   async findErrorsByFileId(fileId: string): Promise<ErrorLogEntity[]> {
     const schemas = await this.errorRepo.find({ where: { fileId } });
     return schemas.map(s => this.errorToDomain(s));
+  }
+
+  async findByHash(hash: string): Promise<FileEntity | null> {
+    const schema = await this.fileRepo.findOne({ where: { fileHash: hash } });
+    if (!schema) return null;
+    return this.toDomain(schema);
+  }
+
+  async saveCompra(compra: CompraEntity): Promise<void> {
+    const schema = this.compraToSchema(compra);
+    await this.compraRepo.save(schema);
   }
 }

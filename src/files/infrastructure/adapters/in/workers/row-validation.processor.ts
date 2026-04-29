@@ -8,6 +8,7 @@ import { QUEUE_SERVICE_PORT } from '../../../../domain/ports/queue.service.port'
 import type { QueueServicePort } from '../../../../domain/ports/queue.service.port';
 import { validateRow } from '../../../../domain/validators/row.validator';
 import { ErrorLogEntity } from '../../../../domain/entities/file.entity';
+import { CompraEntity } from '../../../../domain/entities/compra.entity';
 
 @Processor('row-validation')
 export class RowValidationProcessor extends WorkerHost {
@@ -47,6 +48,27 @@ export class RowValidationProcessor extends WorkerHost {
           ),
         );
       }
+    } else {
+      let fechaRegistro = row['fecha_registro'];
+      if (typeof fechaRegistro === 'number') {
+        fechaRegistro = new Date((fechaRegistro - (25567 + 2)) * 86400 * 1000);
+      } else {
+        fechaRegistro = new Date(fechaRegistro);
+      }
+
+      const compra = new CompraEntity(
+        randomUUID(),
+        fileId,
+        String(row['id_transaccion']),
+        fechaRegistro,
+        String(row['concepto']),
+        Number(row['monto']),
+        String(row['estado']),
+        String(row['metodo_pago']),
+        row['observaciones'] ? String(row['observaciones']) : undefined
+      );
+
+      await this.fileRepository.saveCompra(compra);
     }
 
     // Actualizar progreso del archivo

@@ -34,6 +34,7 @@ export class FileEntity {
     public status: FileStatus,
     public totalChunks: number = 1,
     public processedRecords: number = 0,
+    public readonly fileHash?: string,
     public readonly createdAt: Date = new Date(),
   ) { }
 
