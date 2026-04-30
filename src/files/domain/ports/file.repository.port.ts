@@ -12,5 +12,6 @@ export interface FileRepositoryPort {
   findErrorsByFileId(fileId: string): Promise<ErrorLogEntity[]>;
   findByHash(hash: string): Promise<FileEntity | null>;
   saveCompra(compra: CompraEntity): Promise<void>;
+  upsertCompra(compra: CompraEntity): Promise<void>;
   incrementProgress(id: string): Promise<{ file: FileEntity; justCompleted: boolean } | null>;
 }

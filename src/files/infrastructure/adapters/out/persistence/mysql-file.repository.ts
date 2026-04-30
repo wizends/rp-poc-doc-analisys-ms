@@ -21,7 +21,7 @@ export class MysqlFileRepository implements FileRepositoryPort {
     private readonly chunkRepo: Repository<FileChunkSchema>,
     @InjectRepository(CompraSchema)
     private readonly compraRepo: Repository<CompraSchema>,
-  ) {}
+  ) { }
 
   // ─── Mappers: Schema <-> Domain ────────────────────────────────────
 
@@ -176,6 +176,20 @@ export class MysqlFileRepository implements FileRepositoryPort {
   }
 
   async saveCompra(compra: CompraEntity): Promise<void> {
+    const schema = this.compraToSchema(compra);
+    await this.compraRepo.save(schema);
+  }
+
+  async upsertCompra(compra: CompraEntity): Promise<void> {
+    const existing = await this.compraRepo.findOne({
+      where: { id_transaccion: compra.idTransaccion }
+    });
+
+    if (existing) {
+      console.log(`[Repository] Transacción duplicada detectada: ${compra.idTransaccion}. Saltando...`);
+      return;
+    }
+
     const schema = this.compraToSchema(compra);
     await this.compraRepo.save(schema);
   }

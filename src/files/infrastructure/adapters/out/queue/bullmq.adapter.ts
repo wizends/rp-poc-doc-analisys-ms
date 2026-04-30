@@ -16,6 +16,7 @@ export class BullMqAdapter implements QueueServicePort {
   async enqueueFileProcessing(fileId: string, totalRecords: number): Promise<void> {
     const queue = totalRecords <= 5000 ? this.fileFastQueue : this.fileSlowQueue;
     await queue.add('process-file', { fileId }, {
+      jobId: `proc-${fileId}`, // Idempotencia: un solo job de procesamiento por archivo
       attempts: 3,
       backoff: { type: 'exponential', delay: 1000 },
       removeOnComplete: true,
@@ -50,6 +51,7 @@ export class BullMqAdapter implements QueueServicePort {
 
     // Encolar el PRIMER job de guardado
     await this.rowSaveQueue.add('save-rows', { fileId }, {
+      jobId: `save-start-${fileId}`, 
       attempts: 3,
       backoff: { type: 'fixed', delay: 500 },
       removeOnComplete: true,

@@ -81,7 +81,7 @@ export class RowSaveProcessor extends WorkerHost {
             row['observaciones'] ? String(row['observaciones']) : undefined,
           );
 
-          await this.fileRepository.saveCompra(compra);
+          await this.fileRepository.upsertCompra(compra);
         }
       } catch (err) {
         console.error(`[RowSave] Error fila ${rowNumber} del archivo ${fileId}:`, err.message);

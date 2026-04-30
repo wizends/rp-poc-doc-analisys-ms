@@ -54,6 +54,17 @@ export class InMemoryFileRepository implements FileRepositoryPort {
     this.compras.set(compra.fileId, fileCompras);
   }
 
+  async upsertCompra(compra: CompraEntity): Promise<void> {
+    const fileCompras = this.compras.get(compra.fileId) || [];
+    const index = fileCompras.findIndex(c => c.idTransaccion === compra.idTransaccion);
+    if (index >= 0) {
+      fileCompras[index] = compra;
+    } else {
+      fileCompras.push(compra);
+    }
+    this.compras.set(compra.fileId, fileCompras);
+  }
+
   async incrementProgress(id: string): Promise<{ file: FileEntity; justCompleted: boolean } | null> {
     const file = this.files.get(id);
     if (!file) return null;
