@@ -9,27 +9,16 @@ import { QUEUE_SERVICE_PORT } from '../../../../domain/ports/queue.service.port'
 import type { QueueServicePort } from '../../../../domain/ports/queue.service.port';
 import { ErrorLogEntity } from '../../../../domain/entities/file.entity';
 import { validateRow } from '../../../../domain/validators/row.validator';
-import { CompraEntity } from '../../../../domain/entities/compra.entity';
-import { FileProgressService } from '../../../../application/services/file-progress.service';
-import { ProcessAiSummaryUseCase } from '../../../../application/use-cases/process-ai-summary.use-case';
 
 /**
- * Worker monolítico: parsea el Excel, valida y guarda en BD.
+ * Etapa 1: Lectura + Validación (CPU-only, sin I/O de BD).
  *
- * ¿Por qué NO usar una cola intermedia (row-save)?
- *   Una cola FIFO compartida entre múltiples archivos causa inanición:
- *   el archivo que encola primero monopoliza toda la cola.
+ * 1. Parsea el Excel desde base64.
+ * 2. Valida estructura (columnas) y cada fila.
+ * 3. Almacena las filas validadas en Redis (lista temporal).
+ * 4. Encola UN SOLO job en row-save para iniciar la persistencia.
  *
- * ¿Por qué esto SÍ funciona para múltiples archivos?
- *   Cada archivo obtiene su propio worker dedicado (gracias a concurrency).
- *   Worker A procesa Archivo A, Worker B procesa Archivo B, en paralelo real.
- *   No comparten una cola FIFO → cero inanición.
- *
- * ¿Por qué no expira el lock?
- *   - lockDuration: 10 minutos (vs 30s por defecto)
- *   - BullMQ renueva automáticamente cada lockDuration/2
- *   - setImmediate() después de cada micro-lote libera el Event Loop
- *     para que el timer de renovación pueda ejecutarse
+ * Este job termina en segundos porque no hace ninguna escritura a BD.
  */
 export abstract class FileProcessingProcessor extends WorkerHost {
   constructor(
@@ -37,8 +26,6 @@ export abstract class FileProcessingProcessor extends WorkerHost {
     private readonly fileRepository: FileRepositoryPort,
     @Inject(QUEUE_SERVICE_PORT)
     private readonly queueService: QueueServicePort,
-    private readonly fileProgressService: FileProgressService,
-    private readonly processAiSummaryUseCase: ProcessAiSummaryUseCase,
   ) {
     super();
   }
@@ -90,8 +77,7 @@ export abstract class FileProcessingProcessor extends WorkerHost {
       raw: true,
     });
 
-    // Liberar workbook de memoria inmediatamente
-    (workbook as any) = null;
+    (workbook as any) = null; // liberar memoria
 
     if (rows.length === 0) {
       await this.fileRepository.saveErrorLog(new ErrorLogEntity(
@@ -103,7 +89,7 @@ export abstract class FileProcessingProcessor extends WorkerHost {
       return;
     }
 
-    // ─── 2. Verificar columnas esperadas ────────────────────────────────────
+    // ─── 2. Verificar columnas ──────────────────────────────────────────────
     const expectedColumns = [
       'id_transaccion', 'fecha_registro', 'concepto',
       'monto', 'estado', 'metodo_pago', 'observaciones',
@@ -122,103 +108,29 @@ export abstract class FileProcessingProcessor extends WorkerHost {
       return;
     }
 
-    // ─── 3. Procesar todas las filas ────────────────────────────────────────
+    // ─── 3. Validar todas las filas (CPU-only) ──────────────────────────────
     file.totalRecords = rows.length;
     file.processedRecords = 0;
     await this.fileRepository.updateFile(file);
 
-    // Liberar fileBase64 de memoria (ya no lo necesitamos)
-    file.fileBase64 = '';
+    console.log(`[FileProcessor] Validando ${rows.length} filas del archivo ${file.filename}...`);
 
-    console.log(`[FileProcessor] Procesando ${rows.length} filas (archivo: ${file.filename})`);
+    const validatedRows = rows.map((row, index) => {
+      const rowNumber = index + 2; // fila 1 = header
+      const result = validateRow(row, rowNumber);
+      return { row, rowNumber, isValid: result.isValid, errors: result.errors };
+    });
 
-    const microBatchSize = 50;
+    // ─── 4. Almacenar en Redis y encolar primer job de row-save ─────────────
+    const batchSize = 500;
+    await this.queueService.storeAndStartRowSave(fileId, validatedRows, batchSize);
 
-    for (let i = 0; i < rows.length; i += microBatchSize) {
-      const chunk = rows.slice(i, i + microBatchSize);
-
-      await Promise.all(chunk.map(async (row, index) => {
-        const rowNumber = i + index + 2;
-        const result = validateRow(row, rowNumber);
-
-        try {
-          if (!result.isValid) {
-            for (const error of result.errors) {
-              await this.fileRepository.saveErrorLog(
-                new ErrorLogEntity(
-                  randomUUID(), fileId, rowNumber, error.message,
-                  { column: error.column, value: error.value, errorType: error.errorType, rowData: row },
-                )
-              );
-            }
-            await this.queueService.enqueueValidationError(fileId, {
-              rowNumber, isValid: false, errors: result.errors, rowData: row,
-            });
-          } else {
-            let fechaRegistro = row['fecha_registro'];
-            if (typeof fechaRegistro === 'number') {
-              fechaRegistro = new Date((fechaRegistro - (25567 + 2)) * 86400 * 1000);
-            } else {
-              fechaRegistro = new Date(fechaRegistro);
-            }
-
-            const compra = new CompraEntity(
-              randomUUID(), fileId,
-              String(row['id_transaccion']),
-              fechaRegistro,
-              String(row['concepto']),
-              Number(row['monto']),
-              String(row['estado']),
-              String(row['metodo_pago']),
-              row['observaciones'] ? String(row['observaciones']) : undefined,
-            );
-
-            await this.fileRepository.saveCompra(compra);
-          }
-        } catch (err) {
-          console.error(`[FileProcessor] Error fila ${rowNumber}:`, err.message);
-        } finally {
-          const progressResult = await this.fileRepository.incrementProgress(fileId);
-          if (progressResult) {
-            const { file: updatedFile, justCompleted } = progressResult;
-
-            this.fileProgressService.emitProgress({
-              fileId,
-              processedRecords: updatedFile.processedRecords,
-              totalRecords: updatedFile.totalRecords,
-              status: updatedFile.status,
-            });
-
-            if (justCompleted) {
-              console.log(`[FileProcessor] Archivo ${fileId} completado. Generando resumen IA...`);
-              const summary = await this.processAiSummaryUseCase.execute(fileId);
-              this.fileProgressService.emitProgress({
-                fileId,
-                processedRecords: updatedFile.processedRecords,
-                totalRecords: updatedFile.totalRecords,
-                status: updatedFile.status,
-                summary,
-              });
-            }
-          }
-        }
-      }));
-
-      // CRÍTICO: Ceder el Event Loop para que BullMQ renueve locks y HTTP responda
-      await new Promise(resolve => setImmediate(resolve));
-    }
-
-    console.log(`[FileProcessor] Archivo ${fileId} totalmente procesado.`);
+    console.log(`[FileProcessor] Archivo ${fileId} validado y encolado para persistencia.`);
   }
 }
-@Processor('file-processing-fast', {
-  concurrency: 2,
-  lockDuration: 600000,
-})
+
+@Processor('file-processing-fast', { concurrency: 2 })
 export class FileProcessingFastProcessor extends FileProcessingProcessor { }
 
-@Processor('file-processing-slow', {
-  concurrency: 10,
-  lockDuration: 600000,
-})
+@Processor('file-processing-slow', { concurrency: 10 })
 export class FileProcessingSlowProcessor extends FileProcessingProcessor { }

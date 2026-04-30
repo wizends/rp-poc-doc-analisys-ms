@@ -29,16 +29,19 @@ import { FileProgressService } from './application/services/file-progress.servic
 // Controllers & Workers
 import { FileController } from './infrastructure/adapters/in/web/file.controller';
 import { FileProcessingFastProcessor, FileProcessingSlowProcessor } from './infrastructure/adapters/in/workers/file-processing.processor';
+import { RowSaveProcessor } from './infrastructure/adapters/in/workers/row-save.processor';
 import { ValidationErrorProcessor } from './infrastructure/adapters/in/workers/validation-error.processor';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([FileSchema, ErrorLogSchema, FileChunkSchema, CompraSchema]),
     BullModule.registerQueue(
-      // Colas de procesamiento de archivos (cada archivo = 1 worker dedicado)
+      // Etapa 1: Lectura + validación CPU (jobs rápidos, ~5s)
       { name: 'file-processing-fast' },
       { name: 'file-processing-slow' },
-      // Cola de errores para clasificación IA
+      // Etapa 2: Persistencia en BD (500 filas/job, ~2s por job, continuation pattern)
+      { name: 'row-save' },
+      // Errores
       { name: 'validation-errors' },
     ),
   ],
@@ -48,9 +51,14 @@ import { ValidationErrorProcessor } from './infrastructure/adapters/in/workers/v
     { provide: AI_SERVICE_PORT, useClass: MockAiAdapter },
     { provide: QUEUE_SERVICE_PORT, useClass: BullMqAdapter },
 
-    // Workers: cada archivo obtiene su propio worker dedicado
+    // Etapa 1: Parse + Validación
     FileProcessingFastProcessor,
     FileProcessingSlowProcessor,
+
+    // Etapa 2: Persistencia en BD
+    RowSaveProcessor,
+
+    // Errores
     ValidationErrorProcessor,
 
     // Use Cases
