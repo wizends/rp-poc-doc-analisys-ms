@@ -41,16 +41,25 @@ export class CompleteUploadUseCase {
     const buffer = Buffer.from(fullBase64, 'base64');
     const totalBytes = buffer.length;
 
+    // ─── Protección contra duplicados por Hash ──────────────────────────
+    const crypto = require('crypto');
+    const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+
+    const existingFile = await this.fileRepository.findByHash(hash);
+    if (existingFile && (existingFile.status === 'COMPLETED' || existingFile.status === 'PROCESSING')) {
+      throw new Error(`Este archivo ya ha sido procesado o está en curso (ID: ${existingFile.id})`);
+    }
+
+    (file as any).fileHash = hash;
+
     // ─── Validación de archivo corrupto ─────────────────────────────────
     try {
-      // bookSheets: true lee solo metadatos y hojas, es rápido y valida que el archivo no esté corrupto
       const workbook = XLSX.read(buffer, { type: 'buffer', bookSheets: true });
 
       if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
         throw new Error('El archivo no contiene hojas.');
       }
     } catch (error) {
-      // Marcar como fallido en la base de datos para no dejarlo colgado
       file.status = 'FAILED';
       await this.fileRepository.updateFile(file);
       throw new Error(`El archivo está corrupto o tiene un formato inválido: ${error.message}`);
