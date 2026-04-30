@@ -16,6 +16,7 @@ services:
       - DB_USER=root
       - DB_PASSWORD=root_password
       - DB_NAME=doc_analysis
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
     depends_on:
       - redis
       - mysql

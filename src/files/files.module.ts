@@ -7,8 +7,9 @@ import { FILE_REPOSITORY_PORT } from './domain/ports/file.repository.port';
 import { AI_SERVICE_PORT } from './domain/ports/ai.service.port';
 import { QUEUE_SERVICE_PORT } from './domain/ports/queue.service.port';
 import { MysqlFileRepository } from './infrastructure/adapters/out/persistence/mysql-file.repository';
-import { MockAiAdapter } from './infrastructure/adapters/out/ai/mock-ai.adapter';
+import { GeminiAiAdapter } from './infrastructure/adapters/out/ai/gemini-ai.adapter';
 import { BullMqAdapter } from './infrastructure/adapters/out/queue/bullmq.adapter';
+import { GeminiClassificationProcessor } from './infrastructure/adapters/in/workers/gemini-classification.processor';
 
 // Schemas
 import { FileSchema } from './infrastructure/adapters/out/persistence/schemas/file.schema';
@@ -43,12 +44,14 @@ import { ValidationErrorProcessor } from './infrastructure/adapters/in/workers/v
       { name: 'row-save' },
       // Errores
       { name: 'validation-errors' },
+      // AI Classification
+      { name: 'gemini-classification' },
     ),
   ],
   controllers: [FileController],
   providers: [
     { provide: FILE_REPOSITORY_PORT, useClass: MysqlFileRepository },
-    { provide: AI_SERVICE_PORT, useClass: MockAiAdapter },
+    { provide: AI_SERVICE_PORT, useClass: GeminiAiAdapter },
     { provide: QUEUE_SERVICE_PORT, useClass: BullMqAdapter },
 
     // Etapa 1: Parse + Validación
@@ -60,6 +63,7 @@ import { ValidationErrorProcessor } from './infrastructure/adapters/in/workers/v
 
     // Errores
     ValidationErrorProcessor,
+    GeminiClassificationProcessor,
 
     // Use Cases
     InitUploadUseCase,

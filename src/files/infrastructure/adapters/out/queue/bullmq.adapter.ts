@@ -51,7 +51,7 @@ export class BullMqAdapter implements QueueServicePort {
 
     // Encolar el PRIMER job de guardado
     await this.rowSaveQueue.add('save-rows', { fileId }, {
-      jobId: `save-start-${fileId}`, 
+      jobId: `save-start-${fileId}`,
       attempts: 3,
       backoff: { type: 'fixed', delay: 500 },
       removeOnComplete: true,
@@ -81,7 +81,6 @@ export class BullMqAdapter implements QueueServicePort {
     await this.errorQueue.add('validation-error', { fileId, ...result }, {
       attempts: 3,
       backoff: { type: 'exponential', delay: 1000 },
-      removeOnComplete: true,
     });
   }
 }

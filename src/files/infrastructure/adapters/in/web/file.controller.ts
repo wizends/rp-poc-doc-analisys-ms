@@ -18,6 +18,9 @@ import { GetFileErrorsResponseDto } from './dtos/get-file-errors-response.dto';
 import { ListFilesUseCase } from '../../../../application/use-cases/list-files.use-case';
 import { ListFilesResponseDto } from './dtos/list-files-response.dto';
 import { FileProgressService } from '../../../../application/services/file-progress.service';
+import { ClasifyErrorDto } from './dtos/clasify-errors-request.dto';
+import { ClasifyErrorsResponseDto } from './dtos/clasify-errors-response.dto';
+
 
 @ApiTags('files')
 @Controller('v1/files')
@@ -127,10 +130,9 @@ export class FileController {
 
   @Post(':id/classify-errors')
   @ApiOperation({ summary: 'Disparar la clasificación de errores por IA' })
-  @ApiResponse({ status: 201, description: 'Clasificación completada', type: TriggerClassificationResponseDto })
-  async triggerErrorClassification(@Param('id') id: string): Promise<TriggerClassificationResponseDto> {
-    await this.classifyErrorsUseCase.execute(id);
-    return { message: 'Classification triggered' };
+  @ApiResponse({ status: 201, description: 'Clasificación completada', type: ClasifyErrorsResponseDto })
+  async triggerErrorClassification(@Param('id') id: string): Promise<ClasifyErrorsResponseDto[]> {
+    return await this.classifyErrorsUseCase.execute(id);
   }
 
   @Get(':id/errors')
@@ -146,5 +148,11 @@ export class FileController {
   @ApiOperation({ summary: 'Conectarse para recibir el progreso de procesamiento vía Server-Sent Events (SSE)' })
   progressStream(@Param('id') id: string): Observable<MessageEvent> {
     return this.fileProgressService.getProgressObservable(id);
+  }
+  @Post('errorAnalyzer')
+  @ApiOperation({ summary: 'Clasificar errores y retornar su categorización' })
+  @ApiResponse({ status: 201, description: 'Errores clasificados exitosamente', type: [ClasifyErrorsResponseDto] })
+  async classifyErrors(@Body() body: ClasifyErrorDto[]): Promise<ClasifyErrorsResponseDto[]> {
+    return await this.classifyErrorsUseCase.execute(body);
   }
 }
