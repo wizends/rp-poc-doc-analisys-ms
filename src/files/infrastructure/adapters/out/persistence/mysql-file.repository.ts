@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
 import { FileRepositoryPort } from '../../../../domain/ports/file.repository.port';
-import { FileEntity, ErrorLogEntity, FileStatus, ErrorClassification } from '../../../../domain/entities/file.entity';
+import { FileEntity, ErrorLogEntity, FileStatus } from '../../../../domain/entities/file.entity';
 import { CompraEntity } from '../../../../domain/entities/compra.entity';
 import { FileSchema } from './schemas/file.schema';
 import { ErrorLogSchema } from './schemas/error-log.schema';
@@ -71,7 +71,8 @@ export class MysqlFileRepository implements FileRepositoryPort {
       schema.message,
       schema.rawData,
       schema.isAiClassified,
-      schema.aiClassification as ErrorClassification,
+      schema.aiClassification,
+      schema.severity,
     );
   }
 
@@ -84,6 +85,7 @@ export class MysqlFileRepository implements FileRepositoryPort {
       rawData: entity.rawData,
       isAiClassified: entity.isAiClassified,
       aiClassification: entity.aiClassification,
+      severity: entity.severity,
     };
   }
 

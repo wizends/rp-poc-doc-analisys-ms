@@ -24,6 +24,9 @@ export class ErrorLogSchema {
   @Column('varchar', { length: 50, default: 'Sin clasificar' })
   aiClassification: string;
 
+  @Column('varchar', { length: 20, default: 'UNKNOWN' })
+  severity: string;
+
   @ManyToOne(() => FileSchema, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'fileId' })
   file: FileSchema;

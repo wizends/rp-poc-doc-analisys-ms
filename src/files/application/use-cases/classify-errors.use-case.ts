@@ -3,6 +3,11 @@ import { AI_SERVICE_PORT } from '../../domain/ports/ai.service.port';
 import type { AiServicePort } from '../../domain/ports/ai.service.port';
 import { FILE_REPOSITORY_PORT } from '../../domain/ports/file.repository.port';
 import type { FileRepositoryPort } from '../../domain/ports/file.repository.port';
+import { ClasifyErrorDto } from '../../infrastructure/adapters/in/web/dtos/clasify-errors-request.dto';
+
+
+import { ClasifyErrorsResponseDto } from '../../infrastructure/adapters/in/web/dtos/clasify-errors-response.dto';
+
 
 @Injectable()
 export class ClassifyErrorsUseCase {
@@ -10,42 +15,59 @@ export class ClassifyErrorsUseCase {
     @Inject(AI_SERVICE_PORT)
     private readonly aiService: AiServicePort,
     @Inject(FILE_REPOSITORY_PORT)
-    private readonly fileRepository: FileRepositoryPort,
-  ) {}
+    private readonly fileRepository: FileRepositoryPort
+  ) { }
 
-  async execute(fileId: string): Promise<void> {
-    const errors = await this.fileRepository.findErrorsByFileId(fileId);
-    const unclassifiedErrors = errors.filter(e => !e.isAiClassified);
-
-    if (unclassifiedErrors.length === 0) return;
-
-    // Tomamos los errores crudos para mandar a la IA
-    const errorsPayload = unclassifiedErrors.map(e => ({
-      id: e.id,
-      error: e.message,
-      ...e.rawData
-    }));
-
+  async execute(input: string | ClasifyErrorDto[]): Promise<ClasifyErrorsResponseDto[]> {
     try {
-      const classifications = await this.aiService.classifyErrors(errorsPayload);
-      
-      // Mapeamos y actualizamos
-      for (const classification of classifications) {
-        const errorLog = unclassifiedErrors.find(e => e.id === classification.id);
-        if (errorLog) {
-          // Validar que sea un enum válido
-          const validCategories = ['Error de validación', 'Error de datos', 'Posible fraude/anomalía', 'Error técnico'];
-          if (validCategories.includes(classification.categoria)) {
-             errorLog.classify(classification.categoria as any);
-          } else {
-             errorLog.classify('Sin clasificar');
-          }
-          await this.fileRepository.saveErrorLog(errorLog);
+      let errorsToClassify: ClasifyErrorDto[] = [];
+
+      if (typeof input === 'string') {
+        // Fetch errors from repository
+        const errorLogs = await this.fileRepository.findErrorsByFileId(input);
+        
+        // FILTRAR: solo los que no han sido clasificados aún
+        const pendingLogs = errorLogs.filter(err => !err.isAiClassified);
+        
+        if (pendingLogs.length === 0) {
+          console.log(`[ClassifyErrorsUseCase] No hay nuevos errores para clasificar en el archivo ${input}`);
+          return errorLogs.map(err => ({
+            id: Number(err.id),
+            error: err.message,
+            amount: err.rawData?.monto || 0,
+            customer_id: err.rawData?.clienteId || 'N/A',
+            category: err.aiClassification,
+            severity: err.severity
+          }));
         }
+
+        errorsToClassify = pendingLogs.map(err => ({
+          id: Number(err.id),
+          error: err.message,
+          amount: err.rawData?.monto || 0,
+          customer_id: err.rawData?.clienteId || 'N/A'
+        }));
+
+        const classifications = await this.aiService.classifyErrors(errorsToClassify);
+
+        // Guardar resultados en la base de datos
+        for (let i = 0; i < pendingLogs.length; i++) {
+          const log = pendingLogs[i];
+          const classification = classifications[i];
+          if (classification) {
+            log.classify(classification.category, classification.severity);
+            await this.fileRepository.saveErrorLog(log);
+          }
+        }
+
+        return classifications;
+      } else {
+        errorsToClassify = input;
+        return await this.aiService.classifyErrors(errorsToClassify);
       }
-    } catch (err) {
-      console.error('Error clasificando con IA', err);
-      // Fallback: dejarlos sin clasificar o marcarlos como error técnico, pero no bloqueamos el sistema.
+    } catch (error) {
+      console.error(error);
+      return [];
     }
   }
 }

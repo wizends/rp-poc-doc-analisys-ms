@@ -10,11 +10,13 @@ export class ErrorLogEntity {
     public readonly message: string,
     public readonly rawData?: any,
     public isAiClassified: boolean = false,
-    public aiClassification: ErrorClassification = 'Sin clasificar',
+    public aiClassification: string = 'Sin clasificar',
+    public severity: string = 'UNKNOWN',
   ) { }
 
-  classify(classification: ErrorClassification) {
+  classify(classification: string, severity: string) {
     this.aiClassification = classification;
+    this.severity = severity;
     this.isAiClassified = true;
   }
 }
