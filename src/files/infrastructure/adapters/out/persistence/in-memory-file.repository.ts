@@ -9,6 +9,7 @@ export class InMemoryFileRepository implements FileRepositoryPort {
   private errors: Map<string, ErrorLogEntity[]> = new Map();
   private compras: Map<string, CompraEntity[]> = new Map();
 
+
   async saveFile(file: FileEntity): Promise<void> {
     this.files.set(file.id, file);
     this.errors.set(file.id, []);
@@ -66,5 +67,8 @@ export class InMemoryFileRepository implements FileRepositoryPort {
     }
 
     return { file, justCompleted };
+  }
+  async findAll(): Promise<FileEntity[]> {
+    return Array.from(this.files.values());
   }
 }

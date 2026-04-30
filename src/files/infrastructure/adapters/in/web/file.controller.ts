@@ -15,6 +15,8 @@ import { ProcessAiSummaryUseCase } from '../../../../application/use-cases/proce
 import { ClassifyErrorsUseCase } from '../../../../application/use-cases/classify-errors.use-case';
 import { GetFileErrorsUseCase } from '../../../../application/use-cases/get-file-errors.use-case';
 import { GetFileErrorsResponseDto } from './dtos/get-file-errors-response.dto';
+import { ListFilesUseCase } from '../../../../application/use-cases/list-files.use-case';
+import { ListFilesResponseDto } from './dtos/list-files-response.dto';
 import { FileProgressService } from '../../../../application/services/file-progress.service';
 
 @ApiTags('files')
@@ -27,8 +29,26 @@ export class FileController {
     private readonly processAiSummaryUseCase: ProcessAiSummaryUseCase,
     private readonly classifyErrorsUseCase: ClassifyErrorsUseCase,
     private readonly getFileErrorsUseCase: GetFileErrorsUseCase,
+    private readonly listFilesUseCase: ListFilesUseCase,
     private readonly fileProgressService: FileProgressService,
   ) { }
+
+  @Get()
+  @ApiOperation({ summary: 'Listar todos los archivos subidos y su procesamiento' })
+  @ApiResponse({ status: 200, description: 'Lista de archivos obtenida', type: ListFilesResponseDto })
+  async listFiles(): Promise<ListFilesResponseDto> {
+    const files = await this.listFilesUseCase.execute();
+    return {
+      files: files.map(f => ({
+        id: f.id,
+        filename: f.filename,
+        status: f.status,
+        processedRecords: f.processedRecords,
+        totalRecords: f.totalRecords,
+        createdAt: f.createdAt,
+      })),
+    };
+  }
 
   @Post('upload/init')
   @HttpCode(HttpStatus.CREATED)

@@ -18,7 +18,7 @@ export class CompleteUploadUseCase {
     private readonly fileRepository: FileRepositoryPort,
     @Inject(QUEUE_SERVICE_PORT)
     private readonly queueService: QueueServicePort,
-  ) {}
+  ) { }
 
   async execute(fileId: string): Promise<CompleteUploadResult> {
     const file = await this.fileRepository.findById(fileId);
@@ -45,6 +45,7 @@ export class CompleteUploadUseCase {
     try {
       // bookSheets: true lee solo metadatos y hojas, es rápido y valida que el archivo no esté corrupto
       const workbook = XLSX.read(buffer, { type: 'buffer', bookSheets: true });
+
       if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
         throw new Error('El archivo no contiene hojas.');
       }
@@ -61,7 +62,7 @@ export class CompleteUploadUseCase {
     console.log(`[CompleteUpload] Archivo ${fileId} ensamblado (${totalBytes} bytes). Encolando procesamiento...`);
 
     // Encolar para procesamiento
-    await this.queueService.enqueueFileProcessing(fileId);
+    await this.queueService.enqueueFileProcessing(fileId, file.totalRecords);
 
     return { fileId, totalBytes };
   }

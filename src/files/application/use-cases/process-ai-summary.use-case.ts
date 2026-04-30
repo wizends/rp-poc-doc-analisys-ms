@@ -11,7 +11,7 @@ export class ProcessAiSummaryUseCase {
     private readonly aiService: AiServicePort,
     @Inject(FILE_REPOSITORY_PORT)
     private readonly fileRepository: FileRepositoryPort,
-  ) {}
+  ) { }
 
   async execute(fileId: string): Promise<string> {
     const file = await this.fileRepository.findById(fileId);
@@ -24,7 +24,7 @@ export class ProcessAiSummaryUseCase {
     }
 
     const errors = await this.fileRepository.findErrorsByFileId(fileId);
-    
+
     // Agrupar errores por clasificación
     const errorsByCategory: Record<string, number> = {};
     errors.forEach(err => {

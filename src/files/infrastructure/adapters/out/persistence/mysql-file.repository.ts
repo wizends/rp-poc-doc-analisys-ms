@@ -124,6 +124,13 @@ export class MysqlFileRepository implements FileRepositoryPort {
     return this.toDomain(schema, chunks);
   }
 
+  async findAll(): Promise<FileEntity[]> {
+    const schemas = await this.fileRepo.find({
+      order: { createdAt: 'DESC' },
+    });
+    return schemas.map(s => this.toDomain(s));
+  }
+
   async updateFile(file: FileEntity): Promise<void> {
     const schema = this.toSchema(file);
     await this.fileRepo.save(schema);
